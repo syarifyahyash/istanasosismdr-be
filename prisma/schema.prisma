@@ -1,0 +1,194 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id_user    Int      @id @default(autoincrement())
+  name       String
+  email      String   @unique
+  password   String
+  role       Role
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  // Relasi ke Transaksi
+  transaksi Transaksi[]
+
+  StockLog StockLog[]
+}
+
+model MemberKoperasi {
+  id_member    Int      @id @default(autoincrement())
+  npk          String   @unique
+  nama         String
+  jabatan      String
+  total_hutang Float    @default(0) // Diupdate setiap kali pembayaran hutang dilakukan
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  transaksi        Transaksi[]
+  pembayaranHutang PembayaranHutang[]
+}
+
+model PembayaranHutang {
+  id_pembayaran             Int      @id @default(autoincrement())
+  id_member                 Int
+  id_transaksi              Int
+  jumlah_bayar              Float
+  sisa_hutang_setelah_bayar Float
+  tanggal_bayar             DateTime @default(now())
+
+  // Relasi ke MemberKoperasi
+  member MemberKoperasi @relation(fields: [id_member], references: [id_member])
+
+  // Relasi ke Transaksi
+  transaksi Transaksi @relation(fields: [id_transaksi], references: [id_transaksi])
+}
+
+model LaporanPersediaan {
+  id_laporan      Int      @id @default(autoincrement())
+  barcode         String
+  nama_produk     String
+  kategori        String
+  sisa_stok       Int
+  harga_beli      Decimal
+  harga_jual_cash Decimal
+  bulan           Int
+  tahun           Int
+  tanggal_laporan DateTime
+}
+
+model Produk {
+  id_produk         Int      @id @default(autoincrement())
+  id_kategori       Int
+  barcode           String?  @unique // Nullable barcode, unique
+  nama_produk       String
+  unit              Unit?
+  harga_beli        Float
+  margin            Float? // Nullable margin
+  margin_kredit     Float?
+  harga_jual_cash   Float? // Nullable harga_jual_cash
+  harga_jual_kredit Float? // Nullable harga_jual_kredit
+  stok              Int      @default(0) // Nullable stock
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
+
+  // Relasi ke Kategori
+  kategori Kategori @relation(fields: [id_kategori], references: [id_kategori])
+
+  // Relasi ke DetailTransaksi
+  detailTransaksi DetailTransaksi[]
+
+  StockLog StockLog[]
+}
+
+model Kategori {
+  id_kategori   Int      @id @default(autoincrement())
+  nama_kategori String
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  // Relasi ke Product
+  produk Produk[]
+}
+
+model MetodeBayar {
+  id_metode    Int    @id @default(autoincrement())
+  jenis_metode String
+
+  // Relasi ke Transaksi
+  transaksi Transaksi[]
+}
+
+model Transaksi {
+  id_transaksi     Int             @id @default(autoincrement())
+  kode_transaksi   String          @unique // Kode
+  id_user          Int
+  id_member        Int? // Nullable Foreign Key -> MemberKoperasi
+  metode_bayar     Int // Foreign Key -> MetodeBayar
+  total_transaksi  Float
+  sisa_hutang      Float
+  total_margin     Float
+  status_transaksi StatusTransaksi
+  created_at       DateTime        @default(now())
+  updated_at       DateTime        @updatedAt
+
+  // Relasi ke User
+  user User @relation(fields: [id_user], references: [id_user])
+
+  // Relasi ke MemberKoperasi (nullable)
+  member MemberKoperasi? @relation(fields: [id_member], references: [id_member])
+
+  // Relasi ke MetodeBayar
+  metodeBayar MetodeBayar @relation(fields: [metode_bayar], references: [id_metode])
+
+  // Relasi ke DetailTransaksi
+  detailTransaksi DetailTransaksi[]
+
+  // Relasi ke PembayaranHutang
+  pembayaranHutang PembayaranHutang[]
+}
+
+model DetailTransaksi {
+  id_detail_transaksi Int    @id @default(autoincrement())
+  id_transaksi        Int
+  id_produk           Int
+  jumlah              Int
+  harga_beli          Float
+  harga_jual_cash     Float?
+  harga_jual_kredit   Float?
+  margin              Float?
+  margin_toko_kredit  Float?
+  shu_orang           Float?
+  shu_toko            Float?
+
+  // Relasi ke Transaksi
+  transaksi Transaksi @relation(fields: [id_transaksi], references: [id_transaksi])
+
+  // Relasi ke Product
+  produk Produk @relation(fields: [id_produk], references: [id_produk])
+}
+
+model StockLog {
+  id_log       Int      @id @default(autoincrement())
+  id_produk    Int
+  performed_by Int
+  change_type  String // E.g., 'sale', 'restock', 'adjustment'
+  jumlah       Int
+  created_at   DateTime @default(now())
+
+  // Relasi
+  produk Produk @relation(fields: [id_produk], references: [id_produk])
+  user   User   @relation(fields: [performed_by], references: [id_user])
+}
+
+// Enum untuk Status Transaksi (selesai, pending, dibatalkan)
+enum StatusTransaksi {
+  belum_lunas
+  lunas
+}
+
+// Enum untuk Role (Admin, Kasir)
+enum Role {
+  ADMIN
+  KASIR
+}
+
+enum Unit {
+  pcs
+  dus
+  pack
+  kg
+  botol
+}
